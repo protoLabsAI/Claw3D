@@ -58,7 +58,12 @@ const readJsonFile = (filePath) => {
 
 const DEFAULT_GATEWAY_URL = "ws://localhost:18789";
 const OPENCLAW_CONFIG_FILENAME = "openclaw.json";
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "0.0.0.0",
+]);
 
 const isRecord = (value) => Boolean(value && typeof value === "object");
 
@@ -84,7 +89,9 @@ const readOpenclawGatewayDefaults = (env = process.env) => {
     const auth = isRecord(gateway.auth) ? gateway.auth : null;
     const token = typeof auth?.token === "string" ? auth.token.trim() : "";
     const port =
-      typeof gateway.port === "number" && Number.isFinite(gateway.port) ? gateway.port : null;
+      typeof gateway.port === "number" && Number.isFinite(gateway.port)
+        ? gateway.port
+        : null;
     if (!token) return null;
     const url = port ? `ws://localhost:${port}` : "";
     if (!url) return null;
@@ -117,8 +124,34 @@ const loadUpstreamGatewaySettings = (env = process.env) => {
   };
 };
 
+const loadProtolabsSettings = (env = process.env) => {
+  const settingsPath = resolveStudioSettingsPath(env);
+  const parsed = readJsonFile(settingsPath);
+  const pl = parsed && typeof parsed === "object" ? parsed.protolabs : null;
+
+  return {
+    enabled: pl?.enabled === true,
+    protoclawxUrl:
+      typeof pl?.protoclawxUrl === "string" && pl.protoclawxUrl.trim()
+        ? pl.protoclawxUrl.trim()
+        : "http://localhost:8318",
+    automakerUrl:
+      typeof pl?.automakerUrl === "string" && pl.automakerUrl.trim()
+        ? pl.automakerUrl.trim()
+        : "ws://localhost:3008",
+    automakerApiKey:
+      typeof pl?.automakerApiKey === "string" ? pl.automakerApiKey.trim() : "",
+    healthPollMs:
+      typeof pl?.healthPollMs === "number" && pl.healthPollMs > 0
+        ? pl.healthPollMs
+        : 10000,
+    syntheticGateway: pl?.syntheticGateway !== false,
+  };
+};
+
 module.exports = {
   resolveStateDir,
   resolveStudioSettingsPath,
   loadUpstreamGatewaySettings,
+  loadProtolabsSettings,
 };
