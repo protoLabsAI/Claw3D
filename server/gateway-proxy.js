@@ -331,6 +331,9 @@ function createGatewayProxy(options) {
     });
   };
 
+  // Broadcast a synthetic EventFrame to all connected browser WebSockets.
+  // Used by protolabs-adapter to inject translated events alongside (or instead
+  // of) real upstream gateway events. Frame is JSON.stringified before sending.
   const injectEvent = (frame) => {
     const raw = JSON.stringify(frame);
     for (const ws of wss.clients) {

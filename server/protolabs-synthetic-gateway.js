@@ -22,6 +22,11 @@ function createSyntheticGateway(options) {
       if (!msg || typeof msg !== "object") return;
 
       if (msg.type === "req" && msg.method === "connect" && msg.id) {
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
+
         const response = {
           type: "res",
           id: msg.id,

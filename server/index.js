@@ -81,6 +81,10 @@ async function main() {
   const handleServerUpgrade = (req, socket, head) => {
     if (resolvePathname(req.url) === "/api/gateway/ws") {
       if (syntheticGw) {
+        if (!accessGate.allowUpgrade(req)) {
+          socket.destroy();
+          return;
+        }
         proxy.wss.handleUpgrade(req, socket, head, (ws) => {
           syntheticGw.handleConnection(ws);
         });

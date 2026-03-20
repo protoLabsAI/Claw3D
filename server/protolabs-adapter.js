@@ -1,5 +1,6 @@
 const { WebSocket } = require("ws");
 const http = require("node:http");
+const https = require("node:https");
 const {
   resolveAgentForFeature,
   getAgentIds,
@@ -58,17 +59,12 @@ function createAutomakerSource({ config, broadcast, log, logError }) {
   let stopped = false;
   let status = "disconnected";
 
-  const featureAgentMap = new Map();
-
   const resolveAgent = (payload) => {
     const featureId = payload?.featureId ?? payload?.id ?? "";
     const title = payload?.title ?? payload?.featureTitle ?? "";
     const category = payload?.category ?? "";
     if (!featureId) return "sam";
-    if (featureAgentMap.has(featureId)) return featureAgentMap.get(featureId);
-    const agentId = resolveAgentForFeature(featureId, title, category);
-    featureAgentMap.set(featureId, agentId);
-    return agentId;
+    return resolveAgentForFeature(featureId, title, category);
   };
 
   const translateEvent = (msg) => {
@@ -217,15 +213,16 @@ function createProtoClawXSource({ config, broadcast, log, logError }) {
     const healthUrl = `${url}/api/chat/health`;
 
     const parsed = new URL(healthUrl);
+    const httpModule = parsed.protocol === "https:" ? https : http;
     const reqOpts = {
       hostname: parsed.hostname,
-      port: parsed.port || 80,
-      path: parsed.pathname,
+      port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+      path: `${parsed.pathname}${parsed.search}`,
       method: "GET",
       timeout: 5000,
     };
 
-    const req = http.request(reqOpts, (res) => {
+    const req = httpModule.request(reqOpts, (res) => {
       let body = "";
       res.on("data", (chunk) => {
         body += chunk;
