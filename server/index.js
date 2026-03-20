@@ -4,7 +4,10 @@ const next = require("next");
 const { createAccessGate } = require("./access-gate");
 const { createGatewayProxy } = require("./gateway-proxy");
 const { assertPublicHostAllowed, resolveHosts } = require("./network-policy");
-const { loadUpstreamGatewaySettings } = require("./studio-settings");
+const {
+  loadUpstreamGatewaySettings,
+  loadProtolabsSettings,
+} = require("./studio-settings");
 
 const resolvePort = () => {
   const raw = process.env.PORT?.trim() || "3000";
@@ -55,10 +58,34 @@ async function main() {
     },
   });
 
+  // --- Protolabs adapter (opt-in via settings.json) ---
+  const plConfig = loadProtolabsSettings(process.env);
+  let syntheticGw = null;
+
+  if (plConfig.enabled) {
+    const { createProtolabsAdapter } = require("./protolabs-adapter");
+    const { createSyntheticGateway } = require("./protolabs-synthetic-gateway");
+
+    const adapter = createProtolabsAdapter({ config: plConfig });
+
+    if (plConfig.syntheticGateway) {
+      syntheticGw = createSyntheticGateway({ adapter });
+    }
+
+    adapter.start();
+    console.info("[protolabs] Adapter enabled");
+  }
+
   await app.prepare();
   const handleUpgrade = app.getUpgradeHandler();
   const handleServerUpgrade = (req, socket, head) => {
     if (resolvePathname(req.url) === "/api/gateway/ws") {
+      if (syntheticGw) {
+        proxy.wss.handleUpgrade(req, socket, head, (ws) => {
+          syntheticGw.handleConnection(ws);
+        });
+        return;
+      }
       proxy.handleUpgrade(req, socket, head);
       return;
     }
@@ -108,13 +135,17 @@ async function main() {
     });
 
   try {
-    await Promise.all(servers.map((server, index) => listenOnHost(server, hostnames[index])));
+    await Promise.all(
+      servers.map((server, index) => listenOnHost(server, hostnames[index])),
+    );
   } catch (err) {
     await Promise.all(servers.map((server) => closeServer(server)));
     throw err;
   }
 
-  const hostForBrowser = hostnames.some((value) => value === "127.0.0.1" || value === "::1")
+  const hostForBrowser = hostnames.some(
+    (value) => value === "127.0.0.1" || value === "::1",
+  )
     ? "localhost"
     : hostname === "0.0.0.0" || hostname === "::"
       ? "localhost"

@@ -37,7 +37,9 @@ const resolveOriginForUpstream = (upstreamUrl) => {
   const url = new URL(upstreamUrl);
   const proto = url.protocol === "wss:" ? "https:" : "http:";
   const hostname =
-    url.hostname === "127.0.0.1" || url.hostname === "::1" || url.hostname === "0.0.0.0"
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "::1" ||
+    url.hostname === "0.0.0.0"
       ? "localhost"
       : url.hostname;
   const host = url.port ? `${hostname}:${url.port}` : hostname;
@@ -45,28 +47,42 @@ const resolveOriginForUpstream = (upstreamUrl) => {
 };
 
 const hasNonEmptyToken = (params) => {
-  const raw = params && isObject(params) && isObject(params.auth) ? params.auth.token : "";
+  const raw =
+    params && isObject(params) && isObject(params.auth)
+      ? params.auth.token
+      : "";
   return typeof raw === "string" && raw.trim().length > 0;
 };
 
 const hasNonEmptyPassword = (params) => {
-  const raw = params && isObject(params) && isObject(params.auth) ? params.auth.password : "";
+  const raw =
+    params && isObject(params) && isObject(params.auth)
+      ? params.auth.password
+      : "";
   return typeof raw === "string" && raw.trim().length > 0;
 };
 
 const hasNonEmptyDeviceToken = (params) => {
-  const raw = params && isObject(params) && isObject(params.auth) ? params.auth.deviceToken : "";
+  const raw =
+    params && isObject(params) && isObject(params.auth)
+      ? params.auth.deviceToken
+      : "";
   return typeof raw === "string" && raw.trim().length > 0;
 };
 
 const hasCompleteDeviceAuth = (params) => {
-  const device = params && isObject(params) && isObject(params.device) ? params.device : null;
+  const device =
+    params && isObject(params) && isObject(params.device)
+      ? params.device
+      : null;
   if (!device) {
     return false;
   }
   const id = typeof device.id === "string" ? device.id.trim() : "";
-  const publicKey = typeof device.publicKey === "string" ? device.publicKey.trim() : "";
-  const signature = typeof device.signature === "string" ? device.signature.trim() : "";
+  const publicKey =
+    typeof device.publicKey === "string" ? device.publicKey.trim() : "";
+  const signature =
+    typeof device.signature === "string" ? device.signature.trim() : "";
   const nonce = typeof device.nonce === "string" ? device.nonce.trim() : "";
   const signedAt = device.signedAt;
   return (
@@ -138,7 +154,7 @@ function createGatewayProxy(options) {
       if (!upstreamToken && !browserHasAuth) {
         sendConnectError(
           "studio.gateway_token_missing",
-          "Upstream gateway token is not configured on the Studio host."
+          "Upstream gateway token is not configured on the Studio host.",
         );
         return;
       }
@@ -153,7 +169,11 @@ function createGatewayProxy(options) {
     };
 
     const maybeForwardPendingConnect = () => {
-      if (!pendingConnectFrame || !upstreamReady || upstreamWs?.readyState !== WebSocket.OPEN) {
+      if (
+        !pendingConnectFrame ||
+        !upstreamReady ||
+        upstreamWs?.readyState !== WebSocket.OPEN
+      ) {
         return;
       }
       const frame = pendingConnectFrame;
@@ -164,8 +184,10 @@ function createGatewayProxy(options) {
     const startUpstream = async () => {
       try {
         const settings = await loadUpstreamSettings();
-        upstreamUrl = typeof settings?.url === "string" ? settings.url.trim() : "";
-        upstreamToken = typeof settings?.token === "string" ? settings.token.trim() : "";
+        upstreamUrl =
+          typeof settings?.url === "string" ? settings.url.trim() : "";
+        upstreamToken =
+          typeof settings?.token === "string" ? settings.token.trim() : "";
       } catch (err) {
         logError("Failed to load upstream gateway settings.", err);
         pendingUpstreamSetupError = {
@@ -221,8 +243,8 @@ function createGatewayProxy(options) {
             buildErrorResponse(
               connectRequestId,
               "studio.upstream_closed",
-              `Upstream gateway closed (${ev.code}): ${reason}`
-            )
+              `Upstream gateway closed (${ev.code}): ${reason}`,
+            ),
           );
         }
         closeBoth(1012, "upstream closed");
@@ -232,7 +254,7 @@ function createGatewayProxy(options) {
         logError("Upstream gateway WebSocket error.", err);
         sendConnectError(
           "studio.upstream_error",
-          "Failed to connect to upstream gateway WebSocket."
+          "Failed to connect to upstream gateway WebSocket.",
         );
       });
 
@@ -260,7 +282,10 @@ function createGatewayProxy(options) {
         }
         connectRequestId = id;
         if (pendingUpstreamSetupError) {
-          sendConnectError(pendingUpstreamSetupError.code, pendingUpstreamSetupError.message);
+          sendConnectError(
+            pendingUpstreamSetupError.code,
+            pendingUpstreamSetupError.message,
+          );
           return;
         }
         pendingConnectFrame = parsed;
@@ -273,7 +298,11 @@ function createGatewayProxy(options) {
         return;
       }
 
-      if (parsed.type === "req" && parsed.method === "connect" && !connectResponseSent) {
+      if (
+        parsed.type === "req" &&
+        parsed.method === "connect" &&
+        !connectResponseSent
+      ) {
         pendingConnectFrame = null;
         forwardConnectFrame(parsed);
         return;
@@ -302,7 +331,14 @@ function createGatewayProxy(options) {
     });
   };
 
-  return { wss, handleUpgrade };
+  const injectEvent = (frame) => {
+    const raw = JSON.stringify(frame);
+    for (const ws of wss.clients) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(raw);
+    }
+  };
+
+  return { wss, handleUpgrade, injectEvent };
 }
 
 module.exports = { createGatewayProxy };
